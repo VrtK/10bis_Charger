@@ -19,7 +19,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pickle
           pip install requests
 
       - name: Run script
