@@ -41,7 +41,7 @@ def login_flow(email_address):
     if data.get('Success'):
         logging.info('Email verified successfully')
         auth_data = data['Data']['codeAuthenticationData']
-        return auth_data['authenticationToken']
+        return data['ShoppingCartGuid'], auth_data['authenticationToken']
     else:
         logging.error(f"Login failed, {response.status_code} {response.text}")
         return False, None
@@ -90,8 +90,7 @@ def get_credit_cards():
                 logging.info(f'{card_id} can be charged in ₪{amount}')
                 return card_id, amount
     logging.error('No eligible credit cards found')
-    logging.error(f"Failed to get credit cards: {response.status_code} {response.text}")
-    return False, None
+    return False, 0
 
 
 def card_charge(card_id, amount):
@@ -135,14 +134,14 @@ if __name__ == '__main__':
     except FileNotFoundError:
         logging.info("Cookie jar is empty!")
         email = input('Insert Email address:\n')
-        token = login_flow(email)
+        shopping_guid, token = login_flow(email)
         if not token:
             exit(1)
         code = input('Insert SMS verification code:\n')
-        session_token = generate_token(code, token, email)
+        session_token = generate_token(code, token, shopping_guid, email)
         if not session_token:
             exit(1)
 
-    card_id, free_amount = get_credit_cards()
-    if free_amount > 0:
-        card_charge(card_id, amount)
+    card_id, available_amount = get_credit_cards()
+    if available_amount > 0:
+        card_charge(card_id, available_amount)
