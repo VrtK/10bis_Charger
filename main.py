@@ -1,19 +1,14 @@
+import os
 import pickle
 import logging
 import requests
 
 logger = logging.getLogger('10bis_charger')
-logging.basicConfig(
-    format='%(asctime)s %(message)s',
-    level=logging.INFO,
-    handlers=[
-        logging.FileHandler('10bis_charger.log', 'a', 'utf-8'),
-        logging.StreamHandler()
-    ]
-)
+logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO,
+                    handlers=[logging.FileHandler('10bis_charger.log', 'a', 'utf-8'),logging.StreamHandler()])
 
 session = requests.Session()
-filename = 'cookies.pkl'
+cookie_path = 'cookie.pkl'
 
 BASE_HEADERS = {
     "x-app-type": "web",
@@ -24,7 +19,7 @@ BASE_HEADERS = {
 
 
 def save_cookies():
-    with open(filename, 'wb') as f:
+    with open(cookie_path, 'wb') as f:
         pickle.dump(session.cookies, f)
 
 
@@ -70,6 +65,18 @@ def generate_token(auth_code, auth_token, shopping_guid, email_address):
         return False
 
 
+def refresh_token():
+    logging.info('Refreshing Token')
+    url = "https://api.10bis.co.il/api/v1/Authentication/RefreshToken"
+    response = session.post(url, headers=BASE_HEADERS)
+    if response.status_code == 200:
+        save_cookies()
+        return True
+    else:
+        logging.error(f"Token Refreshing failed: {response.status_code} {response.text}")
+        return False
+
+
 def get_credit_cards():
     logging.info('Resolving credit card list')
     url = "https://www.10bis.co.il/NextApi/UserTransactionsReport"
@@ -79,6 +86,8 @@ def get_credit_cards():
         "dateBias": "0"
     }
     response = session.post(url, headers=BASE_HEADERS, json=data)
+    if not response.ok:
+        logging.error('The cookie tasted terrible!')
     data = response.json()
     if data.get('Success'):
         for credit_card in data['Data']['moneycards']:
@@ -111,15 +120,16 @@ def card_charge(card_id, amount):
         "Accept-Encoding": "gzip, deflate, br, zstd",
         "Accept-Language": "en,he;q=0.9,en-US;q=0.8,und;q=0.7"
     }
-
     session.options(url, headers=options_headers)
 
     patch_headers = {
         **BASE_HEADERS,
         "language": "he"
     }
-
-    data = {"amount": amount, "moneycardIdToCharge": card_id}
+    data = {
+        "amount": amount,
+        "moneycardIdToCharge": card_id
+    }
     response = session.patch(url, headers=patch_headers, json=data)
     if response.status_code == 200:
         logging.info('Charge successfully!')
@@ -129,8 +139,9 @@ def card_charge(card_id, amount):
 
 if __name__ == '__main__':
     try:
-        with open(filename, 'rb') as d:
+        with open(cookie_path, 'rb') as d:
             session.cookies.update(pickle.load(d))
+            refresh_token()
     except FileNotFoundError:
         logging.info("Cookie jar is empty!")
         email = input('Insert Email address:\n')
