@@ -1,4 +1,4 @@
-# 💳 10bis Auto-Charger
+# 💳 10bis Credit Auto-Charger
 
 This script automates the process of logging into a 10bis account, retrieving eligible credit cards, and charging a specified amount of credit using the official API.
 
@@ -12,7 +12,7 @@ This script automates the process of logging into a 10bis account, retrieving el
 ## 🧰 Requirements
 
 - Python 3.7+
-- pickle
+- Pickle
 
 ## 📷 Screenshot
   
