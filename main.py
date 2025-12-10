@@ -69,12 +69,18 @@ def refresh_token():
     logging.info('Refreshing Token')
     url = "https://api.10bis.co.il/api/v1/Authentication/RefreshToken"
     response = session.post(url, headers=BASE_HEADERS)
-    if response.status_code == 200:
-        save_cookies()
-        return True
-    else:
+    if response.status_code != 200:
         logging.error(f"Token Refreshing failed: {response.status_code} {response.text}")
         return False
+
+    try:
+        data = response.json()
+    except ValueError:
+        logging.error(f"RefreshToken returned non-JSON response: {response.text[:200]}")
+        return False
+
+    save_cookies()
+    return True
 
 
 def get_credit_cards():
@@ -86,9 +92,21 @@ def get_credit_cards():
         "dateBias": "0"
     }
     response = session.post(url, headers=BASE_HEADERS, json=data)
+
     if not response.ok:
-        logging.error('The cookie tasted terrible!')
-    data = response.json()
+        logging.error(
+            f'The cookie tasted terrible! status={response.status_code} body={response.text[:200]}'
+        )
+        return False, 0
+
+    try:
+        data = response.json()
+    except ValueError:
+        logging.error(
+            f'Failed to parse JSON from UserTransactionsReport: {response.text[:200]}'
+        )
+        return False, 0
+
     if data.get('Success'):
         for credit_card in data['Data']['moneycards']:
             card_id = credit_card['moneycardId']
@@ -98,6 +116,7 @@ def get_credit_cards():
                 amount = conversion.get("availableAmount", 0)
                 logging.info(f'{card_id} can be charged in ₪{amount}')
                 return card_id, amount
+
     logging.error('No eligible credit cards found')
     return False, 0
 
@@ -138,12 +157,19 @@ def card_charge(card_id, amount):
 
 
 if __name__ == '__main__':
+    need_login = False
+
     try:
         with open(cookie_path, 'rb') as d:
             session.cookies.update(pickle.load(d))
-            refresh_token()
+            if not refresh_token():
+                logging.info("Refresh token failed, need to login again.")
+                need_login = True
     except FileNotFoundError:
         logging.info("Cookie jar is empty!")
+        need_login = True
+
+    if need_login:
         email = input('Insert Email address:\n')
         shopping_guid, token = login_flow(email)
         if not token:
